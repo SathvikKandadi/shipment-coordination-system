@@ -1,0 +1,116 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  driver
+  customer
+}
+
+enum VehicleStatus {
+  available
+  in_use
+  maintenance
+}
+
+enum ShipmentStatus {
+  pending
+  processing
+  in_transit
+  delivered
+  cancelled
+}
+
+enum CheckpointStatus {
+  pending
+  reached
+}
+
+model User {
+  id            Int            @id @default(autoincrement())
+  username      String         @unique
+  email         String         @unique
+  password      String
+  role          UserRole
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at")
+  shipments     Shipment[]     @relation("CustomerShipments")
+  deliveries    Shipment[]     @relation("DriverShipments")
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Vehicle {
+  id              Int            @id @default(autoincrement())
+  plateNumber     String         @unique @map("plate_number")
+  model           String?
+  capacity        Decimal?       @db.Decimal(10, 2)
+  currentLocation String?        @map("current_location")
+  status          VehicleStatus  @default(available)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@map("vehicles")
+}
+
+model Shipment {
+  id                    Int               @id @default(autoincrement())
+  trackingNumber        String            @unique @map("tracking_number")
+  name                  String
+  weight                Float
+  category              String
+  status                ShipmentStatus    @default(pending)
+  fromLocation          Json
+  toLocation            Json
+  estimatedDeliveryDate DateTime
+  customerId            Int               @map("customer_id")
+  customer              User              @relation("CustomerShipments", fields: [customerId], references: [id])
+  driverId              Int?              @map("driver_id")
+  driver                User?             @relation("DriverShipments", fields: [driverId], references: [id])
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt
+  checkpoints           ShipmentCheckpoint[]
+  notifications         Notification[]
+
+  @@map("shipments")
+}
+
+model ShipmentCheckpoint {
+  id            Int             @id @default(autoincrement())
+  shipmentId    Int             @map("shipment_id")
+  sequenceNumber Int            @map("sequence_number")
+  location      String
+  latitude      Decimal?        @db.Decimal(10, 8)
+  longitude     Decimal?        @db.Decimal(11, 8)
+  status        CheckpointStatus @default(pending)
+  reachedAt     DateTime?       @map("reached_at")
+  
+  shipment      Shipment        @relation(fields: [shipmentId], references: [id])
+
+  @@map("shipment_checkpoints")
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  userId    Int
+  shipmentId Int?
+  user      User     @relation(fields: [userId], references: [id])
+  shipment  Shipment? @relation(fields: [shipmentId], references: [id])
+}
