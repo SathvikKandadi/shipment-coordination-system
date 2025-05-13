@@ -2,9 +2,20 @@ const { Router } = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('../generated/prisma');
+const { auth } = require('../middleware/auth');
 
 const router = Router();
 const prisma = new PrismaClient();
+
+// Validate token
+router.get('/validate', auth, async (req, res) => {
+  try {
+    // If we get here, the token is valid (auth middleware already verified it)
+    res.status(200).json({ valid: true });
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+});
 
 // Register new user
 router.post('/register', async (req, res) => {

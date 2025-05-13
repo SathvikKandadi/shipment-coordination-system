@@ -1,20 +1,6 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import 'leaflet/dist/leaflet.css';
-
-// Fix for default marker icons in Leaflet with React
-import L from 'leaflet';
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-
-let DefaultIcon = L.icon({
-  iconUrl: icon,
-  shadowUrl: iconShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41]
-});
-
-L.Marker.prototype.options.icon = DefaultIcon;
+import LazyMap from './LazyMap';
 
 interface Location {
   lat: number;
@@ -25,9 +11,6 @@ interface Location {
 interface ShipmentFormProps {
   onShipmentCreated: () => void;
 }
-
-// Lazy load the Map component
-const Map = lazy(() => import('./Map'));
 
 const ShipmentForm = ({ onShipmentCreated }: ShipmentFormProps) => {
   const auth = useAuth();
@@ -42,11 +25,6 @@ const ShipmentForm = ({ onShipmentCreated }: ShipmentFormProps) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [activeMap, setActiveMap] = useState<'from' | 'to'>('from');
-  const [isClient, setIsClient] = useState(false);
-
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
 
   const validateForm = () => {
     if (!formData.name.trim()) {
@@ -100,10 +78,12 @@ const ShipmentForm = ({ onShipmentCreated }: ShipmentFormProps) => {
           Authorization: `Bearer ${auth.token}`,
         },
         body: JSON.stringify({
-          ...formData,
+          name: formData.name,
           weight: parseFloat(formData.weight),
-          fromLocation: JSON.stringify(formData.fromLocation),
-          toLocation: JSON.stringify(formData.toLocation),
+          category: formData.category,
+          fromLocation: formData.fromLocation,
+          toLocation: formData.toLocation,
+          estimatedDeliveryDate: formData.estimatedDeliveryDate,
         }),
       });
 
@@ -242,23 +222,11 @@ const ShipmentForm = ({ onShipmentCreated }: ShipmentFormProps) => {
         </div>
       </div>
 
-      <div className="h-[400px] rounded-lg overflow-hidden border border-gray-300">
-        {isClient && (
-          <Suspense
-            fallback={
-              <div className="h-full flex items-center justify-center bg-gray-50">
-                <p className="text-gray-500">Loading map...</p>
-              </div>
-            }
-          >
-            <Map
-              fromLocation={formData.fromLocation}
-              toLocation={formData.toLocation}
-              onLocationSelect={handleLocationSelect}
-            />
-          </Suspense>
-        )}
-      </div>
+      <LazyMap
+        fromLocation={formData.fromLocation}
+        toLocation={formData.toLocation}
+        onLocationSelect={handleLocationSelect}
+      />
 
       <div>
         <label htmlFor="estimatedDeliveryDate" className="block text-sm font-medium text-gray-700">

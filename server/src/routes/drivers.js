@@ -1,13 +1,14 @@
-const { Router } = require('express');
+const express = require('express');
+const router = express.Router();
 const { PrismaClient } = require('../generated/prisma');
 const { auth, isAdmin } = require('../middleware/auth');
 
-const router = Router();
 const prisma = new PrismaClient();
 
 // List available drivers
-const listDrivers = async (_req, res) => {
+router.get('/', auth, async (req, res) => {
   try {
+    console.log('Fetching drivers...');
     const drivers = await prisma.user.findMany({
       where: {
         role: 'driver'
@@ -18,15 +19,16 @@ const listDrivers = async (_req, res) => {
         email: true
       }
     });
-
+    console.log('Drivers found:', drivers);
     res.json(drivers);
   } catch (error) {
+    console.error('Error fetching drivers:', error);
     res.status(500).json({ error: 'Error fetching drivers' });
   }
-};
+});
 
 // Add new driver
-const addDriver = async (req, res) => {
+router.post('/', auth, isAdmin, async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
@@ -45,14 +47,32 @@ const addDriver = async (req, res) => {
       }
     });
 
+    // Assign up to 10 unassigned shipments to the new driver
+    const unassignedShipments = await prisma.shipment.findMany({
+      where: { driverId: null },
+      orderBy: { createdAt: 'asc' },
+      take: 10
+    });
+
+    for (const shipment of unassignedShipments) {
+      await prisma.shipment.update({
+        where: { id: shipment.id },
+        data: {
+          driverId: driver.id,
+          status: 'processing'
+        }
+      });
+    }
+
     res.status(201).json(driver);
   } catch (error) {
+    console.error('Error creating driver:', error);
     res.status(500).json({ error: 'Error creating driver' });
   }
-};
+});
 
 // Assign driver to shipment
-const assignDriver = async (req, res) => {
+router.put('/:id/assign', auth, isAdmin, async (req, res) => {
   try {
     const { shipmentId } = req.body;
     const driverId = parseInt(req.params.id);
@@ -68,12 +88,9 @@ const assignDriver = async (req, res) => {
 
     res.json(shipment);
   } catch (error) {
+    console.error('Error assigning driver:', error);
     res.status(500).json({ error: 'Error assigning driver' });
   }
-};
-
-router.get('/', auth, listDrivers);
-router.post('/', auth, isAdmin, addDriver);
-router.put('/:id/assign', auth, isAdmin, assignDriver);
+});
 
 module.exports = router; 
